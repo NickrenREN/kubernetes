@@ -21,7 +21,9 @@ import (
 	"io"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/printers"
 	metricsapi "k8s.io/metrics/pkg/apis/metrics/v1alpha1"
 )
@@ -30,6 +32,7 @@ var (
 	MeasuredResources = []api.ResourceName{
 		api.ResourceCPU,
 		api.ResourceMemory,
+		api.ResourceEphemeralStorage,
 	}
 	NodeColumns     = []string{"NAME", "CPU(cores)", "CPU%", "MEMORY(bytes)", "MEMORY%"}
 	PodColumns      = []string{"NAME", "CPU(cores)", "MEMORY(bytes)"}
@@ -58,6 +61,11 @@ func (printer *TopCmdPrinter) PrintNodeMetrics(metrics []metricsapi.NodeMetrics,
 	w := printers.GetNewTabWriter(printer.out)
 	defer w.Flush()
 
+	var ephemeralStorageEnable bool
+	if utilfeature.DefaultFeatureGate.Enabled(features.LocalStorageCapacityIsolation) {
+		NodeColumns = append(NodeColumns, "EPHEMERALSTORAGE(bytes)", "EPHEMERALSTORAGE%")
+		ephemeralStorageEnable = true
+	}
 	printColumnNames(w, NodeColumns)
 	var usage api.ResourceList
 	for _, m := range metrics {
@@ -69,7 +77,7 @@ func (printer *TopCmdPrinter) PrintNodeMetrics(metrics []metricsapi.NodeMetrics,
 			Name:      m.Name,
 			Metrics:   usage,
 			Available: availableResources[m.Name],
-		})
+		}, ephemeralStorageEnable)
 	}
 	return nil
 }
@@ -87,9 +95,16 @@ func (printer *TopCmdPrinter) PrintPodMetrics(metrics []metricsapi.PodMetrics, p
 	if printContainers {
 		printValue(w, PodColumn)
 	}
+
+	var ephemeralStorageEnable bool
+	if utilfeature.DefaultFeatureGate.Enabled(features.LocalStorageCapacityIsolation) {
+		PodColumns = append(PodColumns, "EPHEMERALSTORAGE(bytes)")
+		ephemeralStorageEnable = true
+	}
+
 	printColumnNames(w, PodColumns)
 	for _, m := range metrics {
-		err := printSinglePodMetrics(w, &m, printContainers, withNamespace)
+		err := printSinglePodMetrics(w, &m, printContainers, withNamespace, ephemeralStorageEnable)
 		if err != nil {
 			return err
 		}
@@ -104,7 +119,7 @@ func printColumnNames(out io.Writer, names []string) {
 	fmt.Fprint(out, "\n")
 }
 
-func printSinglePodMetrics(out io.Writer, m *metricsapi.PodMetrics, printContainersOnly bool, withNamespace bool) error {
+func printSinglePodMetrics(out io.Writer, m *metricsapi.PodMetrics, printContainersOnly bool, withNamespace bool, ephemeralStorageEnable bool) error {
 	containers := make(map[string]api.ResourceList)
 	podMetrics := make(api.ResourceList)
 	for _, res := range MeasuredResources {
@@ -136,7 +151,7 @@ func printSinglePodMetrics(out io.Writer, m *metricsapi.PodMetrics, printContain
 				Name:      contName,
 				Metrics:   containers[contName],
 				Available: api.ResourceList{},
-			})
+			}, ephemeralStorageEnable)
 		}
 	} else {
 		if withNamespace {
@@ -146,14 +161,14 @@ func printSinglePodMetrics(out io.Writer, m *metricsapi.PodMetrics, printContain
 			Name:      m.Name,
 			Metrics:   podMetrics,
 			Available: api.ResourceList{},
-		})
+		}, ephemeralStorageEnable)
 	}
 	return nil
 }
 
-func printMetricsLine(out io.Writer, metrics *ResourceMetricsInfo) {
+func printMetricsLine(out io.Writer, metrics *ResourceMetricsInfo, ephemeralStorageEnable bool) {
 	printValue(out, metrics.Name)
-	printAllResourceUsages(out, metrics)
+	printAllResourceUsages(out, metrics, ephemeralStorageEnable)
 	fmt.Fprint(out, "\n")
 }
 
@@ -161,8 +176,11 @@ func printValue(out io.Writer, value interface{}) {
 	fmt.Fprintf(out, "%v\t", value)
 }
 
-func printAllResourceUsages(out io.Writer, metrics *ResourceMetricsInfo) {
+func printAllResourceUsages(out io.Writer, metrics *ResourceMetricsInfo, ephemeralStorageEnable bool) {
 	for _, res := range MeasuredResources {
+		if res == api.ResourceEphemeralStorage && !ephemeralStorageEnable {
+			continue
+		}
 		quantity := metrics.Metrics[res]
 		printSingleResourceUsage(out, res, quantity)
 		fmt.Fprint(out, "\t")
@@ -178,6 +196,8 @@ func printSingleResourceUsage(out io.Writer, resourceType api.ResourceName, quan
 	case api.ResourceCPU:
 		fmt.Fprintf(out, "%vm", quantity.MilliValue())
 	case api.ResourceMemory:
+		fmt.Fprintf(out, "%vMi", quantity.Value()/(1024*1024))
+	case api.ResourceEphemeralStorage:
 		fmt.Fprintf(out, "%vMi", quantity.Value()/(1024*1024))
 	default:
 		fmt.Fprintf(out, "%v", quantity.Value())
