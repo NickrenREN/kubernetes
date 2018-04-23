@@ -1583,10 +1583,13 @@ type KeyToPath struct {
 type LocalVolumeSource struct {
 	// The full path to the volume on the node.
 	// It can be either a directory or block device (disk, partition, ...).
-	// Directories can be represented only by PersistentVolume with VolumeMode=Filesystem.
-	// Block devices can be represented only by VolumeMode=Block, which also requires the
-	// BlockVolume alpha feature gate to be enabled.
 	Path string `json:"path" protobuf:"bytes,1,opt,name=path"`
+
+	// Filesystem type to mount.
+	// Must be a filesystem type supported by the host operating system.
+	// Ex. "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+	// +optional
+	FSType *string `json:"fsType,omitempty" protobuf:"bytes,2,opt,name=fsType"`
 }
 
 // Represents storage that is managed by an external CSI volume driver (Beta feature)
