@@ -257,15 +257,15 @@ var _ = utils.SIGDescribe("PersistentVolumes-local ", func() {
 				It("should be able to mount volume and read from pod1", func() {
 					By("Reading in pod1")
 					// testFileContent was written during setupLocalVolume
-					testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVolType)
+					testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVolType, true)
 				})
 
 				It("should be able to mount volume and write from pod1", func() {
 					// testFileContent was written during setupLocalVolume
-					testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVolType)
+					testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVolType, true)
 
 					By("Writing in pod1")
-					writeCmd, _ := createWriteAndReadCmds(volumeDir, testFile, testVol.hostDir /*writeTestFileContent*/, testVolType)
+					writeCmd := createWriteCmd(volumeDir, testFile, testVol.hostDir /*writeTestFileContent*/, testVolType, false)
 					podRWCmdExec(pod1, writeCmd)
 				})
 			})
@@ -351,7 +351,7 @@ var _ = utils.SIGDescribe("PersistentVolumes-local ", func() {
 			ep := &eventPatterns{
 				reason:  "FailedMount",
 				pattern: make([]string, 2)}
-			ep.pattern = append(ep.pattern, "MountVolume.SetUp failed")
+			ep.pattern = append(ep.pattern, "MountVolume.NewMounter initialization failed")
 
 			testVol := &localTestVolume{
 				node:            config.node0,
@@ -461,7 +461,7 @@ var _ = utils.SIGDescribe("PersistentVolumes-local ", func() {
 
 			// Delete the persistent volume claim: file will be cleaned up and volume be re-created.
 			By("Deleting the persistent volume claim to clean up persistent volume and re-create one")
-			writeCmd, _ := createWriteAndReadCmds(volumePath, testFile, testFileContent, DirectoryLocalVolumeType)
+			writeCmd := createWriteCmd(volumePath, testFile, testFileContent, DirectoryLocalVolumeType, false)
 			err = framework.IssueSSHCommand(writeCmd, framework.TestContext.Provider, config.node0)
 			Expect(err).NotTo(HaveOccurred())
 			err = config.client.CoreV1().PersistentVolumeClaims(claim.Namespace).Delete(claim.Name, &metav1.DeleteOptions{})
@@ -761,7 +761,7 @@ func twoPodsReadWriteTest(config *localTestConfig, testVol *localTestVolume) {
 	verifyLocalPod(config, testVol, pod1, config.node0.Name)
 
 	// testFileContent was written during setupLocalVolume
-	testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVol.localVolumeType)
+	testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVol.localVolumeType, true)
 
 	By("Creating pod2 to read from the PV")
 	pod2, pod2Err := createLocalPod(config, testVol, nil)
@@ -769,15 +769,15 @@ func twoPodsReadWriteTest(config *localTestConfig, testVol *localTestVolume) {
 	verifyLocalPod(config, testVol, pod2, config.node0.Name)
 
 	// testFileContent was written during setupLocalVolume
-	testReadFileContent(volumeDir, testFile, testFileContent, pod2, testVol.localVolumeType)
+	testReadFileContent(volumeDir, testFile, testFileContent, pod2, testVol.localVolumeType, true)
 
-	writeCmd := createWriteCmd(volumeDir, testFile, testVol.hostDir /*writeTestFileContent*/, testVol.localVolumeType)
+	writeCmd := createWriteCmd(volumeDir, testFile, testVol.hostDir /*writeTestFileContent*/, testVol.localVolumeType, false)
 
 	By("Writing in pod1")
 	podRWCmdExec(pod1, writeCmd)
 
 	By("Reading in pod2")
-	testReadFileContent(volumeDir, testFile, testVol.hostDir, pod2, testVol.localVolumeType)
+	testReadFileContent(volumeDir, testFile, testVol.hostDir, pod2, testVol.localVolumeType, false)
 
 	By("Deleting pod1")
 	framework.DeletePodOrFail(config.client, config.ns, pod1.Name)
@@ -793,9 +793,9 @@ func twoPodsReadWriteSerialTest(config *localTestConfig, testVol *localTestVolum
 	verifyLocalPod(config, testVol, pod1, config.node0.Name)
 
 	// testFileContent was written during setupLocalVolume
-	testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVol.localVolumeType)
+	testReadFileContent(volumeDir, testFile, testFileContent, pod1, testVol.localVolumeType, true)
 
-	writeCmd := createWriteCmd(volumeDir, testFile, testVol.hostDir /*writeTestFileContent*/, testVol.localVolumeType)
+	writeCmd := createWriteCmd(volumeDir, testFile, testVol.hostDir /*writeTestFileContent*/, testVol.localVolumeType, false)
 
 	By("Writing in pod1")
 	podRWCmdExec(pod1, writeCmd)
@@ -809,7 +809,7 @@ func twoPodsReadWriteSerialTest(config *localTestConfig, testVol *localTestVolum
 	verifyLocalPod(config, testVol, pod2, config.node0.Name)
 
 	By("Reading in pod2")
-	testReadFileContent(volumeDir, testFile, testVol.hostDir, pod2, testVol.localVolumeType)
+	testReadFileContent(volumeDir, testFile, testVol.hostDir, pod2, testVol.localVolumeType, false)
 
 	By("Deleting pod2")
 	framework.DeletePodOrFail(config.client, config.ns, pod2.Name)
@@ -880,7 +880,7 @@ func cleanupLocalVolumes(config *localTestConfig, volumes []*localTestVolume) {
 }
 
 func setupWriteTestFile(hostDir string, config *localTestConfig, localVolumeType localVolumeType, node *v1.Node) *localTestVolume {
-	writeCmd, _ := createWriteAndReadCmds(hostDir, testFile, testFileContent, localVolumeType)
+	writeCmd := createWriteCmd(hostDir, testFile, testFileContent, localVolumeType, true)
 	By(fmt.Sprintf("Creating test file on node %q in path %q", node.Name, hostDir))
 	err := framework.IssueSSHCommand(writeCmd, framework.TestContext.Provider, node)
 	Expect(err).NotTo(HaveOccurred())
@@ -919,7 +919,7 @@ func setupLocalVolumeDirectoryLink(config *localTestConfig, node *v1.Node) *loca
 	testDirName := "local-volume-test-" + string(uuid.NewUUID())
 	hostDir := filepath.Join(hostBase, testDirName)
 	hostDirBackend := hostDir + "-backend"
-	cmd := fmt.Sprintf("mkdir %s && ln -s %s %s", hostDirBackend, hostDirBackend, hostDir)
+	cmd := fmt.Sprintf("mkdir %s && sudo ln -s %s %s", hostDirBackend, hostDirBackend, hostDir)
 	_, err := framework.IssueSSHCommandWithResult(cmd, framework.TestContext.Provider, node)
 	Expect(err).NotTo(HaveOccurred())
 	// Populate volume with testFile containing testFileContent.
@@ -940,7 +940,7 @@ func setupLocalVolumeDirectoryLinkBindMounted(config *localTestConfig, node *v1.
 	testDirName := "local-volume-test-" + string(uuid.NewUUID())
 	hostDir := filepath.Join(hostBase, testDirName)
 	hostDirBackend := hostDir + "-backend"
-	cmd := fmt.Sprintf("mkdir %s && sudo mount --bind %s %s && ln -s %s %s",
+	cmd := fmt.Sprintf("mkdir %s && sudo mount --bind %s %s && sudo ln -s %s %s",
 		hostDirBackend, hostDirBackend, hostDirBackend, hostDirBackend, hostDir)
 	_, err := framework.IssueSSHCommandWithResult(cmd, framework.TestContext.Provider, node)
 	Expect(err).NotTo(HaveOccurred())
@@ -965,15 +965,12 @@ func setupLocalVolumeBlockFs(config *localTestConfig, node *v1.Node) *localTestV
 	hostDir := filepath.Join(hostBase, testDirName)
 	createAndMapBlockLocalVolume(config, hostDir, node)
 	loopDev := getBlockLoopDev(hostDir, node)
-	// format and mount at hostDir
-	// give others rwx for read/write testing
-	cmd := fmt.Sprintf("sudo mkfs -t ext4 %s && sudo mount -t ext4 %s %s && sudo chmod o+rwx %s", loopDev, loopDev, hostDir, hostDir)
-	_, err := framework.IssueSSHCommandWithResult(cmd, framework.TestContext.Provider, node)
-	Expect(err).NotTo(HaveOccurred())
 	// Populate block volume with testFile containing testFileContent.
-	volume := setupWriteTestFile(hostDir, config, BlockFsLocalVolumeType, node)
-	volume.hostDir = hostDir
-	volume.loopDevDir = loopDev
+	volume := setupWriteTestFile(loopDev, config, BlockFsLocalVolumeType, node)
+	// we do this in order to set block device path to local PV spec path directly
+	// and test local volume plugin FileSystem mode on block device
+	volume.hostDir = loopDev
+	volume.loopDevDir = hostDir
 	return volume
 }
 
@@ -1027,7 +1024,7 @@ func cleanupLocalVolumeDirectoryLink(config *localTestConfig, volume *localTestV
 	By("Removing the test directory")
 	hostDir := volume.hostDir
 	hostDirBackend := hostDir + "-backend"
-	removeCmd := fmt.Sprintf("rm -r %s && rm -r %s", hostDir, hostDirBackend)
+	removeCmd := fmt.Sprintf("sudo rm -r %s && rm -r %s", hostDir, hostDirBackend)
 	err := framework.IssueSSHCommand(removeCmd, framework.TestContext.Provider, volume.node)
 	Expect(err).NotTo(HaveOccurred())
 }
@@ -1046,7 +1043,7 @@ func cleanupLocalVolumeDirectoryLinkBindMounted(config *localTestConfig, volume 
 	By("Removing the test directory")
 	hostDir := volume.hostDir
 	hostDirBackend := hostDir + "-backend"
-	removeCmd := fmt.Sprintf("rm %s && sudo umount %s && rm -r %s", hostDir, hostDirBackend, hostDirBackend)
+	removeCmd := fmt.Sprintf("sudo rm %s && sudo umount %s && rm -r %s", hostDir, hostDirBackend, hostDirBackend)
 	err := framework.IssueSSHCommand(removeCmd, framework.TestContext.Provider, volume.node)
 	Expect(err).NotTo(HaveOccurred())
 }
@@ -1063,14 +1060,11 @@ func cleanupLocalVolumeBlock(config *localTestConfig, volume *localTestVolume) {
 
 // Deletes the PVC/PV and removes the test directory holding the block file.
 func cleanupLocalVolumeBlockFs(config *localTestConfig, volume *localTestVolume) {
-	// umount first
-	By("Umount blockfs mountpoint")
-	umountCmd := fmt.Sprintf("sudo umount %s", volume.hostDir)
-	err := framework.IssueSSHCommand(umountCmd, framework.TestContext.Provider, volume.node)
+	volume.hostDir = volume.loopDevDir
 	unmapBlockLocalVolume(config, volume.hostDir, volume.node)
 	By("Removing the test directory")
 	removeCmd := fmt.Sprintf("rm -r %s", volume.hostDir)
-	err = framework.IssueSSHCommand(removeCmd, framework.TestContext.Provider, volume.node)
+	err := framework.IssueSSHCommand(removeCmd, framework.TestContext.Provider, volume.node)
 	Expect(err).NotTo(HaveOccurred())
 }
 
@@ -1265,32 +1259,46 @@ func unmapBlockLocalVolume(config *localTestConfig, dir string, node *v1.Node) {
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// Create corresponding write and read commands
-// to be executed via SSH on the node with the local PV
-func createWriteAndReadCmds(testFileDir string, testFile string, writeTestFileContent string, volumeType localVolumeType) (writeCmd string, readCmd string) {
-	writeCmd = createWriteCmd(testFileDir, testFile, writeTestFileContent, volumeType)
-	readCmd = createReadCmd(testFileDir, testFile, volumeType)
-	return writeCmd, readCmd
-}
-
-func createWriteCmd(testDir string, testFile string, writeTestFileContent string, volumeType localVolumeType) string {
-	if volumeType == BlockLocalVolumeType {
-		// testDir is the block device.
-		testFileDir := filepath.Join("/tmp", testDir)
-		testFilePath := filepath.Join(testFileDir, testFile)
-		// Create a file containing the testFileContent.
-		writeTestFileCmd := fmt.Sprintf("mkdir -p %s; echo %s > %s", testFileDir, writeTestFileContent, testFilePath)
-		// sudo is needed when using ssh exec to node.
-		// sudo is not needed and does not exist in some containers (e.g. busybox), when using pod exec.
-		sudoCmd := fmt.Sprintf("SUDO_CMD=$(which sudo); echo ${SUDO_CMD}")
-		// Write the testFileContent into the block device.
-		writeBlockCmd := fmt.Sprintf("${SUDO_CMD} dd if=%s of=%s bs=512 count=100", testFilePath, testDir)
-		// Cleanup the file containing testFileContent.
-		deleteTestFileCmd := fmt.Sprintf("rm %s", testFilePath)
-		return fmt.Sprintf("%s && %s && %s && %s", writeTestFileCmd, sudoCmd, writeBlockCmd, deleteTestFileCmd)
+func createWriteCmd(testDir string, testFile string, writeTestFileContent string, volumeType localVolumeType, whenSetUp bool) string {
+	if whenSetUp {
+		// when setup, we need to test block device command if volumeType is BlockLocalVolumeType or BlockFsLocalVolumeType
+		if volumeType == BlockLocalVolumeType || volumeType == BlockFsLocalVolumeType {
+			// testDir is the block device.
+			testFileDir := filepath.Join("/tmp", testDir)
+			testFilePath := filepath.Join(testFileDir, testFile)
+			// Create a file containing the testFileContent.
+			writeTestFileCmd := fmt.Sprintf("mkdir -p %s; echo %s > %s", testFileDir, writeTestFileContent, testFilePath)
+			// sudo is needed when using ssh exec to node.
+			// sudo is not needed and does not exist in some containers (e.g. busybox), when using pod exec.
+			sudoCmd := fmt.Sprintf("SUDO_CMD=$(which sudo); echo ${SUDO_CMD}")
+			// Write the testFileContent into the block device.
+			writeBlockCmd := fmt.Sprintf("${SUDO_CMD} dd if=%s of=%s bs=512 count=100", testFilePath, testDir)
+			// Cleanup the file containing testFileContent.
+			deleteTestFileCmd := fmt.Sprintf("rm %s", testFilePath)
+			return fmt.Sprintf("%s && %s && %s && %s", writeTestFileCmd, sudoCmd, writeBlockCmd, deleteTestFileCmd)
+		} else {
+			testFilePath := filepath.Join(testDir, testFile)
+			return fmt.Sprintf("mkdir -p %s; echo %s > %s", testDir, writeTestFileContent, testFilePath)
+		}
 	} else {
-		testFilePath := filepath.Join(testDir, testFile)
-		return fmt.Sprintf("mkdir -p %s; echo %s > %s", testDir, writeTestFileContent, testFilePath)
+		if volumeType == BlockLocalVolumeType {
+			// testDir is the block device.
+			testFileDir := filepath.Join("/tmp", testDir)
+			testFilePath := filepath.Join(testFileDir, testFile)
+			// Create a file containing the testFileContent.
+			writeTestFileCmd := fmt.Sprintf("mkdir -p %s; echo %s > %s", testFileDir, writeTestFileContent, testFilePath)
+			// sudo is needed when using ssh exec to node.
+			// sudo is not needed and does not exist in some containers (e.g. busybox), when using pod exec.
+			sudoCmd := fmt.Sprintf("SUDO_CMD=$(which sudo); echo ${SUDO_CMD}")
+			// Write the testFileContent into the block device.
+			writeBlockCmd := fmt.Sprintf("${SUDO_CMD} dd if=%s of=%s bs=512 count=100", testFilePath, testDir)
+			// Cleanup the file containing testFileContent.
+			deleteTestFileCmd := fmt.Sprintf("rm %s", testFilePath)
+			return fmt.Sprintf("%s && %s && %s && %s", writeTestFileCmd, sudoCmd, writeBlockCmd, deleteTestFileCmd)
+		} else {
+			testFilePath := filepath.Join(testDir, testFile)
+			return fmt.Sprintf("mkdir -p %s; echo %s > %s", testDir, writeTestFileContent, testFilePath)
+		}
 	}
 }
 func createReadCmd(testFileDir string, testFile string, volumeType localVolumeType) string {
@@ -1305,8 +1313,15 @@ func createReadCmd(testFileDir string, testFile string, volumeType localVolumeTy
 }
 
 // Read testFile and evaluate whether it contains the testFileContent
-func testReadFileContent(testFileDir string, testFile string, testFileContent string, pod *v1.Pod, volumeType localVolumeType) {
-	readCmd := createReadCmd(volumeDir, testFile, volumeType)
+func testReadFileContent(testFileDir string, testFile string, testFileContent string, pod *v1.Pod, volumeType localVolumeType, afterSetup bool) {
+	if afterSetup {
+		// after setup, if volumeType is BlockFsLocalVolumeType, the block device will be formatted to fs,
+		// so skip this test
+		if volumeType == BlockFsLocalVolumeType {
+			return
+		}
+	}
+	readCmd := createReadCmd(testFileDir, testFile, volumeType)
 	readOut := podRWCmdExec(pod, readCmd)
 	Expect(readOut).To(ContainSubstring(testFileContent))
 }

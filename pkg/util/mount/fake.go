@@ -190,7 +190,7 @@ func (f *FakeMounter) MakeRShared(path string) error {
 }
 
 func (f *FakeMounter) GetFileType(pathname string) (FileType, error) {
-	return FileType("fake"), nil
+	return FileType("Directory"), nil
 }
 
 func (f *FakeMounter) MakeDir(pathname string) error {
