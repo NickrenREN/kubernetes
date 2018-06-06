@@ -548,10 +548,6 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 		}
 	}
 
-	var devicePluginAllocatable v1.ResourceList
-	var devicePluginCapacity v1.ResourceList
-	var removedDevicePlugins []string
-
 	// TODO: Post NotReady if we cannot get MachineInfo from cAdvisor. This needs to start
 	// cAdvisor locally, e.g. for test-cmd.sh, and in integration test.
 	info, err := kl.GetCachedMachineInfo()
@@ -596,16 +592,19 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 			}
 		}
 
-		devicePluginCapacity, devicePluginAllocatable, removedDevicePlugins = kl.containerManager.GetDevicePluginResourceCapacity()
-		if devicePluginCapacity != nil {
-			for k, v := range devicePluginCapacity {
-				glog.V(2).Infof("Update capacity for %s to %d", k, v.Value())
-				node.Status.Capacity[k] = v
-			}
+		allExtendedDevices, allocatableExtendedDevices, removedDevicePlugins := kl.containerManager.GetDevicePluginResourceCapacity()
+		for _, ed := range allExtendedDevices {
+			glog.V(2).Infof("Update ExtendedResourceCapacity for %s ", ed)
+			node.Status.ExtendedResourceCapacity = append(node.Status.ExtendedResourceCapacity, ed)
+		}
+
+		for _, ad := range allocatableExtendedDevices {
+			glog.V(2).Infof("Update ExtendedResourceCapacity for %s ", ad)
+			node.Status.ExtendedResourceAllocatable = append(node.Status.ExtendedResourceAllocatable, ad)
 		}
 
 		for _, removedResource := range removedDevicePlugins {
-			glog.V(2).Infof("Set capacity for %s to 0 on device removal", removedResource)
+			glog.V(2).Infof("Update ExtendedResourceRemoved for %s", removedResource)
 			// Set the capacity of the removed resource to 0 instead of
 			// removing the resource from the node status. This is to indicate
 			// that the resource is managed by device plugin and had been
@@ -614,7 +613,7 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 			// This is required to differentiate the device plugin managed
 			// resources and the cluster-level resources, which are absent in
 			// node status.
-			node.Status.Capacity[v1.ResourceName(removedResource)] = *resource.NewQuantity(int64(0), resource.DecimalSI)
+			node.Status.ExtendedResourceRemoved = append(node.Status.ExtendedResourceRemoved, removedResource)
 		}
 	}
 
@@ -641,12 +640,6 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 			value.Set(0)
 		}
 		node.Status.Allocatable[k] = value
-	}
-	if devicePluginAllocatable != nil {
-		for k, v := range devicePluginAllocatable {
-			glog.V(2).Infof("Update allocatable for %s to %d", k, v.Value())
-			node.Status.Allocatable[k] = v
-		}
 	}
 	// for every huge page reservation, we need to remove it from allocatable memory
 	for k, v := range node.Status.Capacity {

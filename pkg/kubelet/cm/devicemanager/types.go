@@ -24,7 +24,6 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
-	"k8s.io/kubernetes/pkg/scheduler/schedulercache"
 )
 
 // Manager manages all the Device Plugins running on a node.
@@ -42,10 +41,8 @@ type Manager interface {
 	// requested device resources, Allocate will communicate with the owning
 	// device plugin to allow setup procedures to take place, and for the
 	// device plugin to provide runtime settings to use the device (environment
-	// variables, mount points and device files). The node object is provided
-	// for the device manager to update the node capacity to reflect the
-	// currently available devices.
-	Allocate(node *schedulercache.NodeInfo, attrs *lifecycle.PodAdmitAttributes) error
+	// variables, mount points and device files).
+	Allocate(attrs *lifecycle.PodAdmitAttributes) error
 
 	// Stop stops the manager.
 	Stop() error
@@ -57,7 +54,7 @@ type Manager interface {
 
 	// GetCapacity returns the amount of available device plugin resource capacity, resource allocatable
 	// and inactive device plugin resources previously registered on the node.
-	GetCapacity() (v1.ResourceList, v1.ResourceList, []string)
+	GetCapacity() ([]string, []string, []string)
 }
 
 // DeviceRunContainerOptions contains the combined container runtime settings to consume its allocated devices.
