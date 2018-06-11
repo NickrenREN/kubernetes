@@ -63,9 +63,9 @@ type ExtendedResourceClaimSpec struct {
 	// +optional
 	MetadataRequirements metav1.LabelSelector `json:"metadataRequirements,omitempty" protobuf:"bytes,1,opt,name=metadataRequirements"`
 
-	// ExtendedResourceName is the name of ExtendedResource
+	// ExtendedResourceNames are the names of ExtendedResources
 	// +optional
-	ExtendedResourceName string `json:"extendedResourceName,omitempty" protobuf:"bytes,2,opt,name=extendedResourceName"`
+	ExtendedResourceNames []string `json:"extendedResourceNames,omitempty" protobuf:"bytes,2,opt,name=extendedResourceNames"`
 
 	// raw extended resource name, such as nvidia.com/gpu
 	// used for batch resources request
@@ -157,6 +157,10 @@ type ExtendedResourceSpec struct {
 	// resources (e.g., nvidia.com/gpu and amd.com/gpu) through general set selector.
 	// +optional
 	Properties map[string]string `json:"properties,omitempty" protobuf:"bytes,4,opt,name=properties"`
+
+	// ExtendedResourceClaimName is the name of ExtendedResourceClaim that the ExtendedResource is bound to
+	// +optional
+	ExtendedResourceClaimName string `json:"extendedResourceClaimName" protobuf:"bytes,5,opt,name=extendedResourceClaimName"`
 }
 
 // ResourceNodeAffinity defines constraints that limit what nodes this extended resource can be accessed from.

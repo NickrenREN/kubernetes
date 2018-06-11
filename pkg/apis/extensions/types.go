@@ -1088,9 +1088,9 @@ type ExtendedResourceClaimSpec struct {
 	// e.g.: zone in { us-west1-b, us-west1-c }; type: k80
 	// +optional
 	MetadataRequirements metav1.LabelSelector
-	// ExtendedResourceName is the name of ExtendedResource
+	// ExtendedResourceNames are the names of ExtendedResources
 	// +optional
-	ExtendedResourceName string
+	ExtendedResourceNames []string
 
 	// raw extended resource name, such as nvidia.com/gpu
 	// used for batch resources request
@@ -1182,6 +1182,10 @@ type ExtendedResourceSpec struct {
 	// resources (e.g., nvidia.com/gpu and amd.com/gpu) through general set selector.
 	// +optional
 	Properties map[string]string
+
+	// ExtendedResourceClaimName is the name of ExtendedResourceClaim that the ExtendedResource is bound to
+	// +optional
+	ExtendedResourceClaimName string
 }
 
 // ResourceNodeAffinity defines constraints that limit what nodes this extended resource can be accessed from.
