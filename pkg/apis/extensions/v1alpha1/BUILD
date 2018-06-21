@@ -5,11 +5,18 @@ go_library(
     srcs = [
         "doc.go",
         "register.go",
+        "zz_generated.conversion.go",
+        "zz_generated.defaults.go",
     ],
     importpath = "k8s.io/kubernetes/pkg/apis/extensions/v1alpha1",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/apis/core:go_default_library",
+        "//pkg/apis/extensions:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/api/extensions/v1alpha1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/conversion:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
     ],
 )
