@@ -148,7 +148,7 @@ func Convert_extensions_ExtendedResourceClaimList_To_v1alpha1_ExtendedResourceCl
 
 func autoConvert_v1alpha1_ExtendedResourceClaimSpec_To_extensions_ExtendedResourceClaimSpec(in *v1alpha1.ExtendedResourceClaimSpec, out *extensions.ExtendedResourceClaimSpec, s conversion.Scope) error {
 	out.MetadataRequirements = in.MetadataRequirements
-	out.ExtendedResourceName = in.ExtendedResourceName
+	out.ExtendedResourceNames = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceNames))
 	out.RawResourceName = in.RawResourceName
 	out.ExtendedResourceNum = in.ExtendedResourceNum
 	return nil
@@ -161,7 +161,7 @@ func Convert_v1alpha1_ExtendedResourceClaimSpec_To_extensions_ExtendedResourceCl
 
 func autoConvert_extensions_ExtendedResourceClaimSpec_To_v1alpha1_ExtendedResourceClaimSpec(in *extensions.ExtendedResourceClaimSpec, out *v1alpha1.ExtendedResourceClaimSpec, s conversion.Scope) error {
 	out.MetadataRequirements = in.MetadataRequirements
-	out.ExtendedResourceName = in.ExtendedResourceName
+	out.ExtendedResourceNames = *(*[]string)(unsafe.Pointer(&in.ExtendedResourceNames))
 	out.RawResourceName = in.RawResourceName
 	out.ExtendedResourceNum = in.ExtendedResourceNum
 	return nil
@@ -223,6 +223,7 @@ func autoConvert_v1alpha1_ExtendedResourceSpec_To_extensions_ExtendedResourceSpe
 	out.RawResourceName = in.RawResourceName
 	out.DeviceID = in.DeviceID
 	out.Properties = *(*map[string]string)(unsafe.Pointer(&in.Properties))
+	out.ExtendedResourceClaimName = in.ExtendedResourceClaimName
 	return nil
 }
 
@@ -236,6 +237,7 @@ func autoConvert_extensions_ExtendedResourceSpec_To_v1alpha1_ExtendedResourceSpe
 	out.RawResourceName = in.RawResourceName
 	out.DeviceID = in.DeviceID
 	out.Properties = *(*map[string]string)(unsafe.Pointer(&in.Properties))
+	out.ExtendedResourceClaimName = in.ExtendedResourceClaimName
 	return nil
 }
 

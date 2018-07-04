@@ -81,9 +81,9 @@ message ExtendedResourceClaimSpec {
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.LabelSelector metadataRequirements = 1;
 
-  // ExtendedResourceName is the name of ExtendedResource
+  // ExtendedResourceNames are the names of ExtendedResources
   // +optional
-  optional string extendedResourceName = 2;
+  repeated string extendedResourceNames = 2;
 
   // raw extended resource name, such as nvidia.com/gpu
   // used for batch resources request
@@ -140,6 +140,10 @@ message ExtendedResourceSpec {
   // resources (e.g., nvidia.com/gpu and amd.com/gpu) through general set selector.
   // +optional
   map<string, string> properties = 4;
+
+  // ExtendedResourceClaimName is the name of ExtendedResourceClaim that the ExtendedResource is bound to
+  // +optional
+  optional string extendedResourceClaimName = 5;
 }
 
 // ExtendedResourceStatus is the status of ExtendedResource

@@ -118,6 +118,11 @@ func (in *ExtendedResourceClaimList) DeepCopyObject() runtime.Object {
 func (in *ExtendedResourceClaimSpec) DeepCopyInto(out *ExtendedResourceClaimSpec) {
 	*out = *in
 	in.MetadataRequirements.DeepCopyInto(&out.MetadataRequirements)
+	if in.ExtendedResourceNames != nil {
+		in, out := &in.ExtendedResourceNames, &out.ExtendedResourceNames
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

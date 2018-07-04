@@ -61,10 +61,10 @@ func (ExtendedResourceClaimList) SwaggerDoc() map[string]string {
 
 var map_ExtendedResourceClaimSpec = map[string]string{
 	"": "ExtendedResourceClaimSpec describes the ExtendedResourceClaim the user wishes to exist.",
-	"metadataRequirements": "defines general resource property matching constraints. e.g.: zone in { us-west1-b, us-west1-c }; type: k80",
-	"extendedResourceName": "ExtendedResourceName is the name of ExtendedResource",
-	"rawResourceName":      "raw extended resource name, such as nvidia.com/gpu used for batch resources request",
-	"extendResourceNum":    "number of extended resource, for example: request 8 nvidia.com/gpu at one time",
+	"metadataRequirements":  "defines general resource property matching constraints. e.g.: zone in { us-west1-b, us-west1-c }; type: k80",
+	"extendedResourceNames": "ExtendedResourceNames are the names of ExtendedResources",
+	"rawResourceName":       "raw extended resource name, such as nvidia.com/gpu used for batch resources request",
+	"extendResourceNum":     "number of extended resource, for example: request 8 nvidia.com/gpu at one time",
 }
 
 func (ExtendedResourceClaimSpec) SwaggerDoc() map[string]string {
@@ -93,11 +93,12 @@ func (ExtendedResourceList) SwaggerDoc() map[string]string {
 }
 
 var map_ExtendedResourceSpec = map[string]string{
-	"":                "ExtendedResourceSpec describes the ExtendedResource the user wishes to exist.",
-	"nodeAffinity":    "NodeAffinity defines constraints that limit what nodes this resource can be accessed from. This field influences the scheduling of pods that use this resource.",
-	"rawResourceName": "Raw resource name. E.g.: nvidia.com/gpu",
-	"deviceID":        "device id",
-	"properties":      "gpuType: k80 zone: us-west1-b Note Kubelet adds a special property corresponding to the above ResourceName field. This will allow a single ResourceClass (e.g., “gpu”) to match multiple types of resources (e.g., nvidia.com/gpu and amd.com/gpu) through general set selector.",
+	"":                          "ExtendedResourceSpec describes the ExtendedResource the user wishes to exist.",
+	"nodeAffinity":              "NodeAffinity defines constraints that limit what nodes this resource can be accessed from. This field influences the scheduling of pods that use this resource.",
+	"rawResourceName":           "Raw resource name. E.g.: nvidia.com/gpu",
+	"deviceID":                  "device id",
+	"properties":                "gpuType: k80 zone: us-west1-b Note Kubelet adds a special property corresponding to the above ResourceName field. This will allow a single ResourceClass (e.g., “gpu”) to match multiple types of resources (e.g., nvidia.com/gpu and amd.com/gpu) through general set selector.",
+	"extendedResourceClaimName": "ExtendedResourceClaimName is the name of ExtendedResourceClaim that the ExtendedResource is bound to",
 }
 
 func (ExtendedResourceSpec) SwaggerDoc() map[string]string {

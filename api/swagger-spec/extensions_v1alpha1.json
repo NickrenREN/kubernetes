@@ -2023,9 +2023,12 @@
       "$ref": "v1.LabelSelector",
       "description": "defines general resource property matching constraints. e.g.: zone in { us-west1-b, us-west1-c }; type: k80"
      },
-     "extendedResourceName": {
-      "type": "string",
-      "description": "ExtendedResourceName is the name of ExtendedResource"
+     "extendedResourceNames": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "ExtendedResourceNames are the names of ExtendedResources"
      },
      "rawResourceName": {
       "type": "string",
@@ -2229,7 +2232,8 @@
     "description": "ExtendedResourceSpec describes the ExtendedResource the user wishes to exist.",
     "required": [
      "rawResourceName",
-     "deviceID"
+     "deviceID",
+     "extendedResourceClaimName"
     ],
     "properties": {
      "nodeAffinity": {
@@ -2247,6 +2251,10 @@
      "properties": {
       "type": "object",
       "description": "gpuType: k80 zone: us-west1-b Note Kubelet adds a special property corresponding to the above ResourceName field. This will allow a single ResourceClass (e.g., “gpu”) to match multiple types of resources (e.g., nvidia.com/gpu and amd.com/gpu) through general set selector."
+     },
+     "extendedResourceClaimName": {
+      "type": "string",
+      "description": "ExtendedResourceClaimName is the name of ExtendedResourceClaim that the ExtendedResource is bound to"
      }
     }
    },
