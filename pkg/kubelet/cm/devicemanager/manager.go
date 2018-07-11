@@ -22,6 +22,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	apiextensions "k8s.io/api/extensions/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	clientset "k8s.io/client-go/kubernetes"
@@ -164,24 +166,61 @@ func (m *ManagerImpl) createER(resourceName string, d pluginapi.Device) error {
 	return err
 }
 
-func (m *ManagerImpl) updateERs(resourceName string, added, updated, deleted []pluginapi.Device) {
-	for _, d := range added {
-		err := m.createER(resourceName, d)
-		if err != nil {
-			glog.Errorf("create ExtendedResource error: %v", err)
-		}
+func (m *ManagerImpl) updateER(erName, healthCondition string) {
+	er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(erName, metav1.GetOptions{})
+	if err != nil {
+		glog.Errorf("get ExtendedResource error: %v", err)
+		return
 	}
+	if er == nil {
+		// No ER for this device
+		glog.Errorf("no ExtendedResource found")
+		return
+	}
+	var phase apiextensions.ExtendedResourcePhase
+	if healthCondition != pluginapi.Healthy {
+		phase = apiextensions.ExtendedResourcePending
+	} else {
+		phase = apiextensions.ExtendedResourceAvailable
+	}
+	erClone := er.DeepCopy()
+	erClone.Status.Phase = phase
+	_, err = m.client.ExtensionsV1alpha1().ExtendedResources().Update(erClone)
+	if err != nil {
+		glog.Errorf("update ExtendedResource error: %v", err)
+	}
+}
 
+func (m *ManagerImpl) deleteER(erName string) {
+	er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(erName, metav1.GetOptions{})
+	if err != nil {
+		glog.Errorf("get ExtendedResource error: %v", err)
+		return
+	}
+	if er == nil {
+		// The ER was deleted, skip this
+		return
+	}
+	err = m.client.ExtensionsV1alpha1().ExtendedResources().Delete(erName, &metav1.DeleteOptions{})
+	if err != nil {
+		glog.Errorf("delete ExtendedResource error: %v", err)
+	}
+	return
+}
+
+func (m *ManagerImpl) updateERs(resourceName string, updated, deleted []pluginapi.Device) {
 	for _, d := range updated {
 		er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(resourceName+"-"+d.ID, metav1.GetOptions{})
-		if err != nil {
+		if errors.IsNotFound(err) {
+			// No ER for this device, create one
+			m.createER(resourceName, d)
+			continue
+		}
+		if err != nil && !errors.IsNotFound(err) {
 			glog.Errorf("get ExtendedResource error: %v", err)
 			continue
 		}
-		if er == nil {
-			// No ER for this device, create one
-			m.createER(resourceName, d)
-		}
+
 		var phase apiextensions.ExtendedResourcePhase
 		if d.Health != pluginapi.Healthy {
 			phase = apiextensions.ExtendedResourcePending
@@ -198,25 +237,18 @@ func (m *ManagerImpl) updateERs(resourceName string, added, updated, deleted []p
 	}
 
 	for _, d := range deleted {
-		er, err := m.client.ExtensionsV1alpha1().ExtendedResources().Get(resourceName+"-"+d.ID, metav1.GetOptions{})
-		if err != nil {
-			glog.Errorf("get ExtendedResource error: %v", err)
-			continue
-		}
-		if er == nil {
-			// The ER was deleted, skip this
-			continue
-		}
-		err = m.client.ExtensionsV1alpha1().ExtendedResources().Delete(resourceName+"-"+d.ID, &metav1.DeleteOptions{})
-		if err != nil {
-			glog.Errorf("delete ExtendedResource error: %v", err)
-		}
+		m.deleteER(resourceName + "-" + d.ID)
 	}
 }
 
+func formatResourceName(resourceName string) string {
+	rn := strings.ToLower(resourceName)
+	return strings.Replace(rn, "/", "-", -1)
+}
+
 func (m *ManagerImpl) genericDeviceUpdateCallback(resourceName string, added, updated, deleted []pluginapi.Device) {
-	m.updateERs(resourceName, added, updated, deleted)
 	kept := append(updated, added...)
+	m.updateERs(formatResourceName(resourceName), kept, deleted)
 	m.mutex.Lock()
 	if _, ok := m.healthyDevices[resourceName]; !ok {
 		m.healthyDevices[resourceName] = sets.NewString()
@@ -478,6 +510,10 @@ func (m *ManagerImpl) markResourceUnhealthy(resourceName string) {
 	if _, ok := m.unhealthyDevices[resourceName]; !ok {
 		m.unhealthyDevices[resourceName] = sets.NewString()
 	}
+	for _, did := range healthyDevices.UnsortedList() {
+		m.updateER(formatResourceName(resourceName)+"-"+did, pluginapi.Unhealthy)
+	}
+
 	m.unhealthyDevices[resourceName] = m.unhealthyDevices[resourceName].Union(healthyDevices)
 }
 
@@ -506,13 +542,13 @@ func (m *ManagerImpl) GetCapacity() ([]string, []string, []string) {
 			delete(m.endpoints, resourceName)
 			delete(m.healthyDevices, resourceName)
 			for _, deviceID := range devices.UnsortedList() {
-				deletedResources.Insert(resourceName + "-" + deviceID)
+				deletedResources.Insert(formatResourceName(resourceName) + "-" + deviceID)
 			}
 			needsUpdateCheckpoint = true
 		} else {
 			for _, deviceID := range devices.UnsortedList() {
-				capacity.Insert(resourceName + "-" + deviceID)
-				allocatable.Insert(resourceName + "-" + deviceID)
+				capacity.Insert(formatResourceName(resourceName) + "-" + deviceID)
+				allocatable.Insert(formatResourceName(resourceName) + "-" + deviceID)
 			}
 		}
 	}
@@ -525,12 +561,12 @@ func (m *ManagerImpl) GetCapacity() ([]string, []string, []string) {
 			delete(m.endpoints, resourceName)
 			delete(m.unhealthyDevices, resourceName)
 			for _, deviceID := range devices.UnsortedList() {
-				deletedResources.Insert(resourceName + "-" + deviceID)
+				deletedResources.Insert(formatResourceName(resourceName) + "-" + deviceID)
 			}
 			needsUpdateCheckpoint = true
 		} else {
 			for _, deviceID := range devices.UnsortedList() {
-				capacity.Insert(resourceName + "-" + deviceID)
+				capacity.Insert(formatResourceName(resourceName) + "-" + deviceID)
 			}
 		}
 	}
@@ -538,6 +574,13 @@ func (m *ManagerImpl) GetCapacity() ([]string, []string, []string) {
 	if needsUpdateCheckpoint {
 		m.writeCheckpoint()
 	}
+
+	// Here just delete removed ER
+	// TODO: need to revisit here later
+	for _, erName := range deletedResources.UnsortedList() {
+		m.deleteER(erName)
+	}
+
 	return capacity.UnsortedList(), allocatable.UnsortedList(), deletedResources.UnsortedList()
 }
 
@@ -715,9 +758,9 @@ func (m *ManagerImpl) allocateContainerResources(pod *v1.Pod, container *v1.Cont
 		}
 		devicesToAllocate := sets.NewString()
 		for _, erName := range ers {
-			// Now, the ExtendedResourceName = ResourceName + "-" + DeviceID , so, get device ids here
+			// Now, the ExtendedResourceName = formatResourceName(resourceName) + "-" + DeviceID , so, get device ids here
 			// TODO: make it more flexible
-			devicesToAllocate.Insert(erName[len(resource)+1:])
+			devicesToAllocate.Insert(erName[len(formatResourceName(resource))+1:])
 		}
 		allocDevices, err := m.validateDevicesToAllocate(podUID, contName, resource, erc, devicesToAllocate)
 		if err != nil {

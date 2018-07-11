@@ -592,18 +592,12 @@ func (kl *Kubelet) setNodeStatusMachineInfo(node *v1.Node) {
 			}
 		}
 
-		allExtendedDevices, allocatableExtendedDevices, removedDevicePlugins := kl.containerManager.GetDevicePluginResourceCapacity()
-		for _, ed := range allExtendedDevices {
-			glog.V(2).Infof("Update ExtendedResourceCapacity for %s ", ed)
-			node.Status.ExtendedResourceCapacity = append(node.Status.ExtendedResourceCapacity, ed)
-		}
+		allExtendedDevices, allocatableExtendedDevices, removedExtendedDevices := kl.containerManager.GetDevicePluginResourceCapacity()
+		node.Status.ExtendedResourceCapacity = allExtendedDevices
 
-		for _, ad := range allocatableExtendedDevices {
-			glog.V(2).Infof("Update ExtendedResourceCapacity for %s ", ad)
-			node.Status.ExtendedResourceAllocatable = append(node.Status.ExtendedResourceAllocatable, ad)
-		}
+		node.Status.ExtendedResourceAllocatable = allocatableExtendedDevices
 
-		for _, removedResource := range removedDevicePlugins {
+		for _, removedResource := range removedExtendedDevices {
 			glog.V(2).Infof("Update ExtendedResourceRemoved for %s", removedResource)
 			// Set the capacity of the removed resource to 0 instead of
 			// removing the resource from the node status. This is to indicate

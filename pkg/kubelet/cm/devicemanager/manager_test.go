@@ -201,18 +201,18 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	callback(resourceName1, devs, []pluginapi.Device{}, []pluginapi.Device{})
 	capacity, allocatable, removedResources := testManager.GetCapacity()
 
-	//capacity = []string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2", "domain1.com/resource1-Device3"}
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2", "domain1.com/resource1-Device3"}, capacity))
-	//allocatable = []string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2"}
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2"}, allocatable))
+	//capacity = []string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2", "domain1.com-resource1-Device3"}
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2", "domain1.com-resource1-Device3"}, capacity))
+	//allocatable = []string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Deletes an unhealthy device should NOT change allocatable but change capacity.
 	callback(resourceName1, []pluginapi.Device{}, []pluginapi.Device{}, []pluginapi.Device{devs[2]})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
 
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2"}, capacity))
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2"}, allocatable))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, capacity))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Updates a healthy device to unhealthy should reduce allocatable by 1.
@@ -220,14 +220,14 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	dev2.Health = pluginapi.Unhealthy
 	callback(resourceName1, []pluginapi.Device{}, []pluginapi.Device{dev2}, []pluginapi.Device{})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device1", "domain1.com/resource1-Device2"}, capacity))
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device1"}, allocatable))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1", "domain1.com-resource1-Device2"}, capacity))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device1"}, allocatable))
 	as.Equal(0, len(removedResources))
 
 	// Deletes a healthy device should reduce capacity and allocatable by 1.
 	callback(resourceName1, []pluginapi.Device{}, []pluginapi.Device{}, []pluginapi.Device{devs[0]})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device2"}, capacity))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device2"}, capacity))
 	as.Equal(0, len(allocatable))
 	as.Equal(0, len(removedResources))
 
@@ -238,7 +238,7 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	callback(resourceName2, devs, []pluginapi.Device{}, []pluginapi.Device{})
 	capacity, allocatable, removedResources = testManager.GetCapacity()
 
-	as.True(arrayEqual([]string{"domain1.com/resource1-Device2", "resource2-Device1", "resource2-Device2", "resource2-Device3"}, capacity))
+	as.True(arrayEqual([]string{"domain1.com-resource1-Device2", "resource2-Device1", "resource2-Device2", "resource2-Device3"}, capacity))
 	as.True(arrayEqual([]string{"resource2-Device1", "resource2-Device2"}, allocatable))
 	as.Equal(0, len(removedResources))
 
@@ -246,7 +246,7 @@ func TestUpdateCapacityAllocatable(t *testing.T) {
 	// is removed from capacity and it no longer exists in healthyDevices after the call.
 	e1.setStopTime(time.Now().Add(-1*endpointStopGracePeriod - time.Duration(10)*time.Second))
 	capacity, allocatable, removed := testManager.GetCapacity()
-	as.Equal([]string{resourceName1 + "-" + "Device2"}, removed)
+	as.Equal([]string{formatResourceName(resourceName1) + "-" + "Device2"}, removed)
 	_, ok := testManager.healthyDevices[resourceName1]
 	as.False(ok)
 	_, ok = testManager.unhealthyDevices[resourceName1]

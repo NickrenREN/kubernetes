@@ -98,7 +98,7 @@ func NodeRules() []rbac.PolicyRule {
 		rbac.NewRule("create").Groups(authenticationGroup).Resources("tokenreviews").RuleOrDie(),
 		rbac.NewRule("create").Groups(authorizationGroup).Resources("subjectaccessreviews", "localsubjectaccessreviews").RuleOrDie(),
 
-		rbac.NewRule("create", "get", "list", "watch").Groups(extensionsGroup).Resources("extendedresources", "extendedresourceclaims").RuleOrDie(),
+		rbac.NewRule("create", "update", "delete", "get", "list", "watch").Groups(extensionsGroup).Resources("extendedresources", "extendedresourceclaims").RuleOrDie(),
 
 		// Needed to build serviceLister, to populate env vars for services
 		rbac.NewRule(Read...).Groups(legacyGroup).Resources("services").RuleOrDie(),
