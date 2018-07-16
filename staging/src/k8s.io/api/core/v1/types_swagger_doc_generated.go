@@ -306,6 +306,7 @@ var map_Container = map[string]string{
 	"stdin":                    "Whether this container should allocate a buffer for stdin in the container runtime. If this is not set, reads from stdin in the container will always result in EOF. Default is false.",
 	"stdinOnce":                "Whether the container runtime should close the stdin channel after it has been opened by a single attach. When stdin is true the stdin stream will remain open across multiple attach sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the first client attaches to stdin, and then remains open and accepts data until the client disconnects, at which time stdin is closed and remains closed until the container is restarted. If this flag is false, a container processes that reads from stdin will never receive an EOF. Default is false",
 	"tty":                      "Whether this container should allocate a TTY for itself, also requires 'stdin' to be true. Default is false.",
+	"extendedResourceClaims": "ExtendedResourceClaims is the claim names array users asked for this container",
 }
 
 func (Container) SwaggerDoc() map[string]string {
@@ -1083,17 +1084,20 @@ func (NodeSpec) SwaggerDoc() map[string]string {
 }
 
 var map_NodeStatus = map[string]string{
-	"":                "NodeStatus is information about the current status of a node.",
-	"capacity":        "Capacity represents the total resources of a node. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#capacity",
-	"allocatable":     "Allocatable represents the resources of a node that are available for scheduling. Defaults to Capacity.",
-	"phase":           "NodePhase is the recently observed lifecycle phase of the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#phase The field is never populated, and now is deprecated.",
-	"conditions":      "Conditions is an array of current observed node conditions. More info: https://kubernetes.io/docs/concepts/nodes/node/#condition",
-	"addresses":       "List of addresses reachable to the node. Queried from cloud provider, if available. More info: https://kubernetes.io/docs/concepts/nodes/node/#addresses",
-	"daemonEndpoints": "Endpoints of daemons running on the Node.",
-	"nodeInfo":        "Set of ids/uuids to uniquely identify the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#info",
-	"images":          "List of container images on this node",
-	"volumesInUse":    "List of attachable volumes in use (mounted) by the node.",
-	"volumesAttached": "List of volumes that are attached to the node.",
+	"":                            "NodeStatus is information about the current status of a node.",
+	"capacity":                    "Capacity represents the total resources of a node. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#capacity",
+	"allocatable":                 "Allocatable represents the resources of a node that are available for scheduling. Defaults to Capacity.",
+	"phase":                       "NodePhase is the recently observed lifecycle phase of the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#phase The field is never populated, and now is deprecated.",
+	"conditions":                  "Conditions is an array of current observed node conditions. More info: https://kubernetes.io/docs/concepts/nodes/node/#condition",
+	"addresses":                   "List of addresses reachable to the node. Queried from cloud provider, if available. More info: https://kubernetes.io/docs/concepts/nodes/node/#addresses",
+	"daemonEndpoints":             "Endpoints of daemons running on the Node.",
+	"nodeInfo":                    "Set of ids/uuids to uniquely identify the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#info",
+	"images":                      "List of container images on this node",
+	"volumesInUse":                "List of attachable volumes in use (mounted) by the node.",
+	"volumesAttached":             "List of volumes that are attached to the node.",
+	"extendedResourceAllocatable": "List of ExtendedResources that are allocatable on this node values are names of ExtendedResources",
+	"extendedResourceCapacity":    "List of all ExtendedResources on this node values are names of ExtendedResources",
+	"extendedResourceRemoved":     "List of ExtendedResources that were on this node, but removed now values are names of ExtendedResources",
 }
 
 func (NodeStatus) SwaggerDoc() map[string]string {

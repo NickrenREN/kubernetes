@@ -2057,6 +2057,10 @@ type Container struct {
 	StdinOnce bool
 	// +optional
 	TTY bool
+
+	// ExtendedResourceClaims is the claim names array users asked for this container
+	// +optional
+	ExtendedResourceClaims []string
 }
 
 // Handler defines a specific action that should be taken
@@ -3503,6 +3507,19 @@ type NodeStatus struct {
 	// List of volumes that are attached to the node.
 	// +optional
 	VolumesAttached []AttachedVolume
+
+	// List of ExtendedResources that are allocatable on this node
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceAllocatable []string
+	// List of all ExtendedResources on this node
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceCapacity []string
+	// List of ExtendedResources that were on this node, but removed now
+	// values are names of ExtendedResources
+	// +optional
+	ExtendedResourceRemoved []string
 }
 
 type UniqueVolumeName string
