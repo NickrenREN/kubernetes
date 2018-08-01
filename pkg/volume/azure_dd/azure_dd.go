@@ -72,6 +72,7 @@ var _ volume.ProvisionableVolumePlugin = &azureDataDiskPlugin{}
 var _ volume.AttachableVolumePlugin = &azureDataDiskPlugin{}
 var _ volume.VolumePluginWithAttachLimits = &azureDataDiskPlugin{}
 var _ volume.ExpandableVolumePlugin = &azureDataDiskPlugin{}
+var _ volume.DeviceMountableVolumePlugin = &azureDataDiskPlugin{}
 
 const (
 	azureDataDiskPluginName = "kubernetes.io/azure-disk"
@@ -268,4 +269,12 @@ func (plugin *azureDataDiskPlugin) ConstructVolumeSpec(volumeName, mountPath str
 func (plugin *azureDataDiskPlugin) GetDeviceMountRefs(deviceMountPath string) ([]string, error) {
 	m := plugin.host.GetMounter(plugin.GetPluginName())
 	return mount.GetMountRefs(m, deviceMountPath)
+}
+
+func (plugin *azureDataDiskPlugin) NewDeviceMounter() (volume.DeviceMounter, error) {
+	return plugin.NewAttacher()
+}
+
+func (plugin *azureDataDiskPlugin) NewDeviceUnmounter() (volume.DeviceUnmounter, error) {
+	return plugin.NewDetacher()
 }

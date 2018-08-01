@@ -253,7 +253,7 @@ type Detacher interface {
 	Detach(volumeName string, nodeName types.NodeName) error
 }
 
-// DeviceUnmounter can umount a block volume from the global path.
+// DeviceUnmounter can unmount a block volume from the global path.
 type DeviceUnmounter interface {
 	// UnmountDevice unmounts the global mount of the disk. This
 	// should only be called once all bind mounts have been
