@@ -49,6 +49,9 @@ func (f *FakeCache) ForgetPod(pod *v1.Pod) error {
 // AddPod is a fake method for testing.
 func (f *FakeCache) AddPod(pod *v1.Pod) error { return nil }
 
+// DeletePV is a fake method for testing.
+func (f *FakeCache) DeletePV(pv *v1.PersistentVolume) error { return nil }
+
 // UpdatePod is a fake method for testing.
 func (f *FakeCache) UpdatePod(oldPod, newPod *v1.Pod) error { return nil }
 

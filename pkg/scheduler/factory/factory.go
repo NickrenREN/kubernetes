@@ -419,22 +419,28 @@ func isZoneRegionLabel(k string) bool {
 }
 
 func (c *configFactory) onPvDelete(obj interface{}) {
-	if c.enableEquivalenceClassCache {
-		var pv *v1.PersistentVolume
-		switch t := obj.(type) {
-		case *v1.PersistentVolume:
-			pv = t
-		case cache.DeletedFinalStateUnknown:
-			var ok bool
-			pv, ok = t.Obj.(*v1.PersistentVolume)
-			if !ok {
-				glog.Errorf("cannot convert to *v1.PersistentVolume: %v", t.Obj)
-				return
-			}
-		default:
-			glog.Errorf("cannot convert to *v1.PersistentVolume: %v", t)
+	var pv *v1.PersistentVolume
+	switch t := obj.(type) {
+	case *v1.PersistentVolume:
+		pv = t
+	case cache.DeletedFinalStateUnknown:
+		var ok bool
+		pv, ok = t.Obj.(*v1.PersistentVolume)
+		if !ok {
+			glog.Errorf("cannot convert to *v1.PersistentVolume: %v", t.Obj)
 			return
 		}
+	default:
+		glog.Errorf("cannot convert to *v1.PersistentVolume: %v", t)
+		return
+	}
+
+	err := c.schedulerCache.DeletePV(pv)
+	if err != nil {
+		glog.Errorf("delete PV from scheduler cache error, %v", err)
+	}
+
+	if c.enableEquivalenceClassCache {
 		c.invalidatePredicatesForPv(pv)
 	}
 }

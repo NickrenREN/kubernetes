@@ -125,6 +125,9 @@ type Cache interface {
 
 	// IsUpToDate returns true if the given NodeInfo matches the current data in the cache.
 	IsUpToDate(n *NodeInfo) bool
+
+	// DeletePV will substract the local storage requested value if the PV is local storage
+	DeletePV(pv *v1.PersistentVolume) error
 }
 
 // Snapshot is a snapshot of cache state

@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -45,6 +46,9 @@ type NodeInfo struct {
 	podsWithAffinity []*v1.Pod
 	usedPorts        util.HostPortInfo
 
+	// LocalPVCMap stores all the local PVCs whose request values are calculated before
+	// key is PVC name
+	LocalPVCMap map[string]bool
 	// Total requested resource of all pods on this node.
 	// It includes assumed pods which scheduler sends binding to apiserver but
 	// didn't get it as scheduled yet.
@@ -129,9 +133,10 @@ func (transientSchedInfo *transientSchedulerInfo) resetTransientSchedulerInfo() 
 
 // Resource is a collection of compute resource.
 type Resource struct {
-	MilliCPU         int64
-	Memory           int64
-	EphemeralStorage int64
+	MilliCPU               int64
+	Memory                 int64
+	EphemeralStorage       int64
+	LocalPersistentStorage int64
 	// We store allowedPodNumber (which is Node.Status.Allocatable.Pods().Value())
 	// explicitly as int, to avoid conversions and improve performance.
 	AllowedPodNumber int
@@ -191,10 +196,11 @@ func (r *Resource) ResourceList() v1.ResourceList {
 // Clone returns a copy of this resource.
 func (r *Resource) Clone() *Resource {
 	res := &Resource{
-		MilliCPU:         r.MilliCPU,
-		Memory:           r.Memory,
-		AllowedPodNumber: r.AllowedPodNumber,
-		EphemeralStorage: r.EphemeralStorage,
+		MilliCPU:               r.MilliCPU,
+		Memory:                 r.Memory,
+		AllowedPodNumber:       r.AllowedPodNumber,
+		EphemeralStorage:       r.EphemeralStorage,
+		LocalPersistentStorage: r.LocalPersistentStorage,
 	}
 	if r.ScalarResources != nil {
 		res.ScalarResources = make(map[v1.ResourceName]int64)
@@ -255,6 +261,7 @@ func (r *Resource) SetMaxResource(rl v1.ResourceList) {
 // the returned object.
 func NewNodeInfo(pods ...*v1.Pod) *NodeInfo {
 	ni := &NodeInfo{
+		LocalPVCMap:         make(map[string]bool),
 		requestedResource:   &Resource{},
 		nonzeroRequest:      &Resource{},
 		allocatableResource: &Resource{},
@@ -391,6 +398,7 @@ func (n *NodeInfo) Clone() *NodeInfo {
 		memoryPressureCondition: n.memoryPressureCondition,
 		diskPressureCondition:   n.diskPressureCondition,
 		pidPressureCondition:    n.pidPressureCondition,
+		LocalPVCMap:             make(map[string]bool),
 		usedPorts:               make(util.HostPortInfo),
 		imageSizes:              n.imageSizes,
 		generation:              n.generation,
@@ -450,6 +458,28 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	for rName, rQuant := range res.ScalarResources {
 		n.requestedResource.ScalarResources[rName] += rQuant
 	}
+	// local persistent storage calculation
+	lsr, ok := pod.Annotations["localstoragerequest"]
+	if ok {
+		localPVCRequestMap := map[string]string{}
+		err := json.Unmarshal([]byte(lsr), &localPVCRequestMap)
+		if err != nil {
+			glog.Errorf("Unmarshal local storage request error: %v", err)
+		}
+		for pvcUID, pvcRequest := range localPVCRequestMap {
+			ok := n.LocalPVCMap[pvcUID]
+			if !ok {
+				localStorageRequest, err := resource.ParseQuantity(pvcRequest)
+				if err != nil {
+					glog.Errorf("parse local storage request error: %v", err)
+				} else {
+					n.requestedResource.LocalPersistentStorage += localStorageRequest.Value()
+				}
+				n.LocalPVCMap[pvcUID] = true
+			}
+		}
+	}
+
 	n.nonzeroRequest.MilliCPU += non0CPU
 	n.nonzeroRequest.Memory += non0Mem
 	n.pods = append(n.pods, pod)
@@ -461,6 +491,17 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	n.updateUsedPorts(pod, true)
 
 	n.generation = nextGeneration()
+}
+
+func (n *NodeInfo) RemoveLocalPV(pv *v1.PersistentVolume) error {
+	pvCapacity := pv.Spec.Capacity[v1.ResourceStorage]
+	pvCapGiB := pvCapacity.Value() / (1024 * 1024 * 1024)
+	if n.requestedResource.LocalPersistentStorage >= pvCapGiB {
+		n.requestedResource.LocalPersistentStorage -= pvCapGiB
+		return nil
+	} else {
+		return fmt.Errorf("total requested value is smaller than the local PV capacity")
+	}
 }
 
 // RemovePod subtracts pod information from this NodeInfo.
@@ -505,6 +546,7 @@ func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
 			for rName, rQuant := range res.ScalarResources {
 				n.requestedResource.ScalarResources[rName] -= rQuant
 			}
+
 			n.nonzeroRequest.MilliCPU -= non0CPU
 			n.nonzeroRequest.Memory -= non0Mem
 
@@ -563,6 +605,17 @@ func (n *NodeInfo) SetNode(node *v1.Node) error {
 	n.node = node
 
 	n.allocatableResource = NewResource(node.Status.Allocatable)
+	// get node local storage capacity
+	lpc, ok := node.Annotations["lvmvg"]
+	if ok {
+		localStorageCapacity, err := resource.ParseQuantity(lpc)
+		if err != nil {
+			glog.Errorf("parse local storage capacity error: %v", err)
+		} else {
+			// round up to GiB
+			n.allocatableResource.LocalPersistentStorage = localStorageCapacity.Value() / (1024 * 1024 * 1024)
+		}
+	}
 
 	n.taints = node.Spec.Taints
 	for i := range node.Status.Conditions {

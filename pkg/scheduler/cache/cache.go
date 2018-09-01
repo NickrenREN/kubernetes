@@ -323,6 +323,24 @@ func (cache *schedulerCache) UpdatePod(oldPod, newPod *v1.Pod) error {
 	return nil
 }
 
+func (cache *schedulerCache) DeletePV(pv *v1.PersistentVolume) error {
+	if pv.Spec.Local == nil {
+		// PV is not local storage, skip
+		return nil
+	}
+	if pv.Annotations == nil || pv.Annotations["nodename"] == "" {
+		return fmt.Errorf("PV object Annotation doesn't contain nodeName info")
+	}
+
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	nodeName := pv.Annotations["nodename"]
+	n := cache.nodes[nodeName]
+
+	return n.RemoveLocalPV(pv)
+}
+
 func (cache *schedulerCache) RemovePod(pod *v1.Pod) error {
 	key, err := getPodKey(pod)
 	if err != nil {

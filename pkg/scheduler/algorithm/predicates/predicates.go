@@ -17,6 +17,7 @@ limitations under the License.
 package predicates
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -723,9 +725,32 @@ func PodFitsResources(pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *s
 		// We couldn't parse metadata - fallback to computing it.
 		podRequest = GetResourceRequest(pod)
 	}
+
+	var newLocalPVCRequestGiB int64
+	lsr, ok := pod.Annotations["localstoragerequest"]
+	if ok {
+		localPVCRequestMap := map[string]string{}
+		err := json.Unmarshal([]byte(lsr), &localPVCRequestMap)
+		if err != nil {
+			glog.Errorf("Unmarshal local storage request error: %v", err)
+		}
+		for pvcUID, pvcRequest := range localPVCRequestMap {
+			ok := nodeInfo.LocalPVCMap[pvcUID]
+			if !ok {
+				localStorageRequest, err := resource.ParseQuantity(pvcRequest)
+				if err != nil {
+					glog.Errorf("parse local storage request error: %v", err)
+				} else {
+					newLocalPVCRequestGiB += localStorageRequest.Value()
+				}
+			}
+		}
+	}
+
 	if podRequest.MilliCPU == 0 &&
 		podRequest.Memory == 0 &&
 		podRequest.EphemeralStorage == 0 &&
+		newLocalPVCRequestGiB == 0 &&
 		len(podRequest.ScalarResources) == 0 {
 		return len(predicateFails) == 0, predicateFails, nil
 	}
@@ -739,6 +764,9 @@ func PodFitsResources(pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *s
 	}
 	if allocatable.EphemeralStorage < podRequest.EphemeralStorage+nodeInfo.RequestedResource().EphemeralStorage {
 		predicateFails = append(predicateFails, NewInsufficientResourceError(v1.ResourceEphemeralStorage, podRequest.EphemeralStorage, nodeInfo.RequestedResource().EphemeralStorage, allocatable.EphemeralStorage))
+	}
+	if allocatable.LocalPersistentStorage < newLocalPVCRequestGiB+nodeInfo.RequestedResource().LocalPersistentStorage {
+		predicateFails = append(predicateFails, NewInsufficientResourceError("local-persistent-storage", podRequest.LocalPersistentStorage, nodeInfo.RequestedResource().LocalPersistentStorage, allocatable.LocalPersistentStorage))
 	}
 
 	for rName, rQuant := range podRequest.ScalarResources {
