@@ -1277,7 +1277,7 @@ func (kl *Kubelet) StartGarbageCollection() {
 // Note that the modules here must not depend on modules that are not initialized here.
 func (kl *Kubelet) initializeModules() error {
 	// Prometheus metrics.
-	metrics.Register(kl.runtimeCache, collectors.NewVolumeStatsCollector(kl))
+	metrics.Register(kl.runtimeCache, collectors.NewVolumeStatsCollector(kl), collectors.NewEmptyDirStatsCollector(kl))
 
 	// Setup filesystem directories.
 	if err := kl.setupDataDirs(); err != nil {
