@@ -10,11 +10,13 @@ go_library(
     name = "go_default_library",
     srcs = [
         "balanced_resource_allocation.go",
+        "disk_iops.go",
         "image_locality.go",
         "interpod_affinity.go",
         "least_requested.go",
         "metadata.go",
         "most_requested.go",
+        "network_bandwidth.go",
         "node_affinity.go",
         "node_label.go",
         "node_prefer_avoid_pods.go",

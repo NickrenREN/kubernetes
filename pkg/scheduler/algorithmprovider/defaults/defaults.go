@@ -245,6 +245,28 @@ func defaultPriorities() sets.String {
 			},
 		),
 
+		// Disk priority
+		factory.RegisterPriorityConfigFactory(
+			"DiskIOPSPriority",
+			factory.PriorityConfigFactory{
+				Function: func(args factory.PluginFactoryArgs) algorithm.PriorityFunction {
+					return priorities.NewDiskIOPSPriority()
+				},
+				Weight: 1,
+			},
+		),
+
+		//Network bandwidth priority
+		factory.RegisterPriorityConfigFactory(
+			"NetworkBandwidthPriority",
+			factory.PriorityConfigFactory{
+				Function: func(args factory.PluginFactoryArgs) algorithm.PriorityFunction {
+					return priorities.NewNetworkBandwidthPriority()
+				},
+				Weight: 1,
+			},
+		),
+
 		// Prioritize nodes by least requested utilization.
 		factory.RegisterPriorityFunction2("LeastRequestedPriority", priorities.LeastRequestedPriorityMap, nil, 1),
 

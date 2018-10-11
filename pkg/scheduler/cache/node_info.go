@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -137,6 +138,8 @@ type Resource struct {
 	Memory                 int64
 	EphemeralStorage       int64
 	LocalPersistentStorage int64
+	DiskIOPS               int64
+	NetworkBandwidth       int64
 	// We store allowedPodNumber (which is Node.Status.Allocatable.Pods().Value())
 	// explicitly as int, to avoid conversions and improve performance.
 	AllowedPodNumber int
@@ -201,6 +204,8 @@ func (r *Resource) Clone() *Resource {
 		AllowedPodNumber:       r.AllowedPodNumber,
 		EphemeralStorage:       r.EphemeralStorage,
 		LocalPersistentStorage: r.LocalPersistentStorage,
+		DiskIOPS:               r.DiskIOPS,
+		NetworkBandwidth:       r.NetworkBandwidth,
 	}
 	if r.ScalarResources != nil {
 		res.ScalarResources = make(map[v1.ResourceName]int64)
@@ -458,6 +463,51 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	for rName, rQuant := range res.ScalarResources {
 		n.requestedResource.ScalarResources[rName] += rQuant
 	}
+	// disk iops calculation
+	diskIOPSReadReq, ok := pod.Annotations[util.DiskIOPSReadRequest]
+	if ok {
+		containerIOPSMap := map[string]string{}
+		err := json.Unmarshal([]byte(diskIOPSReadReq), &containerIOPSMap)
+		if err != nil {
+			glog.Errorf("Unmarshal local storage request error: %v", err)
+		}
+
+		for _, containerDiskIOPSRead := range containerIOPSMap {
+			diskRead, err := strconv.ParseInt(containerDiskIOPSRead, 10, 64)
+			if err != nil {
+				glog.Errorf("parse int64 error: %v", err)
+			} else {
+				n.requestedResource.DiskIOPS += diskRead
+			}
+		}
+	}
+	diskIOPSWriteReq, ok := pod.Annotations[util.DiskIOPSWriteRequest]
+	if ok {
+		containerIOPSMap := map[string]string{}
+		err := json.Unmarshal([]byte(diskIOPSWriteReq), &containerIOPSMap)
+		if err != nil {
+			glog.Errorf("Unmarshal local storage request error: %v", err)
+		}
+		for _, containerDiskIOPSWrite := range containerIOPSMap {
+			diskWrite, err := strconv.ParseInt(containerDiskIOPSWrite, 10, 64)
+			if err != nil {
+				glog.Errorf("parse int64 error: %v", err)
+			} else {
+				n.requestedResource.DiskIOPS += diskWrite
+			}
+		}
+	}
+	// network bandwidth calculation
+	networkBandwidthReq, ok := pod.Annotations[util.NetworkBandwidthRequest]
+	if ok {
+		networkBandwidth, err := strconv.ParseInt(networkBandwidthReq, 10, 64)
+		if err != nil {
+			glog.Errorf("parse int64 error: %v", err)
+		} else {
+			n.requestedResource.NetworkBandwidth += networkBandwidth
+		}
+	}
+
 	// local persistent storage calculation
 	lsr, ok := pod.Annotations["localstoragerequest"]
 	if ok {
@@ -547,6 +597,51 @@ func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
 				n.requestedResource.ScalarResources[rName] -= rQuant
 			}
 
+			// disk iops calculation
+			diskIOPSReadReq, ok := pod.Annotations[util.DiskIOPSReadRequest]
+			if ok {
+				containerIOPSMap := map[string]string{}
+				err := json.Unmarshal([]byte(diskIOPSReadReq), &containerIOPSMap)
+				if err != nil {
+					glog.Errorf("Unmarshal local storage request error: %v", err)
+				}
+
+				for _, containerDiskIOPSRead := range containerIOPSMap {
+					diskRead, err := strconv.ParseInt(containerDiskIOPSRead, 10, 64)
+					if err != nil {
+						glog.Errorf("parse int64 error: %v", err)
+					} else {
+						n.requestedResource.DiskIOPS -= diskRead
+					}
+				}
+			}
+			diskIOPSWriteReq, ok := pod.Annotations[util.DiskIOPSWriteRequest]
+			if ok {
+				containerIOPSMap := map[string]string{}
+				err := json.Unmarshal([]byte(diskIOPSWriteReq), &containerIOPSMap)
+				if err != nil {
+					glog.Errorf("Unmarshal local storage request error: %v", err)
+				}
+				for _, containerDiskIOPSWrite := range containerIOPSMap {
+					diskWrite, err := strconv.ParseInt(containerDiskIOPSWrite, 10, 64)
+					if err != nil {
+						glog.Errorf("parse int64 error: %v", err)
+					} else {
+						n.requestedResource.DiskIOPS -= diskWrite
+					}
+				}
+			}
+			// network bandwidth calculation
+			networkBandwidthReq, ok := pod.Annotations[util.NetworkBandwidthRequest]
+			if ok {
+				networkBandwidth, err := strconv.ParseInt(networkBandwidthReq, 10, 64)
+				if err != nil {
+					glog.Errorf("parse int64 error: %v", err)
+				} else {
+					n.requestedResource.NetworkBandwidth -= networkBandwidth
+				}
+			}
+
 			n.nonzeroRequest.MilliCPU -= non0CPU
 			n.nonzeroRequest.Memory -= non0Mem
 
@@ -614,6 +709,27 @@ func (n *NodeInfo) SetNode(node *v1.Node) error {
 		} else {
 			// round up to GiB
 			n.allocatableResource.LocalPersistentStorage = localStorageCapacity.Value() / (1024 * 1024 * 1024)
+		}
+	}
+
+	// disk iops calculation
+	diskIOPSCap, ok := node.Annotations[util.DiskIOPSCapacity]
+	if ok {
+		diskRead, err := strconv.ParseInt(diskIOPSCap, 10, 64)
+		if err != nil {
+			glog.Errorf("parse int64 error: %v", err)
+		} else {
+			n.allocatableResource.DiskIOPS = diskRead
+		}
+	}
+	// network bandwidth calculation
+	networkBandwidthCap, ok := node.Annotations[util.NetworkBandwidthCapacity]
+	if ok {
+		networkBandwidth, err := strconv.ParseInt(networkBandwidthCap, 10, 64)
+		if err != nil {
+			glog.Errorf("parse int64 error: %v", err)
+		} else {
+			n.allocatableResource.NetworkBandwidth = networkBandwidth
 		}
 	}
 

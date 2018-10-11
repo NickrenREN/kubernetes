@@ -25,6 +25,15 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 )
 
+const (
+	DiskIOPSReadRequest  = "sncloud.com/diskIOPSReadRequest"
+	DiskIOPSWriteRequest = "sncloud.com/diskIOPSWriteRequest"
+	DiskIOPSCapacity     = "sncloud.com/diskIOPSCapacity"
+
+	NetworkBandwidthRequest  = "sncloud.com/networkBandwidthRequest"
+	NetworkBandwidthCapacity = "sncloud.com/networkBandwidthCapacity"
+)
+
 // DefaultBindAllHostIP defines the default ip address used to bind to all host.
 const DefaultBindAllHostIP = "0.0.0.0"
 
