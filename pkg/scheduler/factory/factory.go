@@ -457,12 +457,12 @@ func getBinderFunc(client clientset.Interface, extenders []algorithm.SchedulerEx
 			break
 		}
 	}
-	defaultBinder := &binder{client}
+
 	return func(pod *v1.Pod) Binder {
 		if extenderBinder != nil && extenderBinder.IsInterested(pod) {
 			return extenderBinder
 		}
-		return defaultBinder
+		return getDefaultBinder(c.client)
 	}
 }
 
@@ -622,6 +622,19 @@ func (b *binder) Bind(binding *v1.Binding) error {
 	klog.V(3).Infof("Attempting to bind %v to %v", binding.Name, binding.Target.Name)
 	return b.Client.CoreV1().Pods(binding.Namespace).Bind(binding)
 }
+
+var defaultBinder scheduler.Binder
+
+func getDefaultBinder(client clientset.Interface) scheduler.Binder {
+	if defaultBinder == nil {
+		defaultBinder = &binder{
+			Client:client,
+		}
+	}
+
+	return defaultBinder
+}
+
 
 type podConditionUpdater struct {
 	Client clientset.Interface
